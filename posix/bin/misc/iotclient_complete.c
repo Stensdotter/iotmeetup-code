@@ -1,6 +1,6 @@
 /*
  * An example of a directly connected device which is capable of communicating
- * directly with Oracle IoT Cloud Service. This sample illustrates 
+ * directly with Oracle IoT Cloud Service. This sample illustrates
  * C code for sending data to the cloud service and does not fully explore the Client Library API.
  *
  * The sample uses the virtualization API. It presents a simple messenger.
@@ -10,47 +10,64 @@
  * a real device. For this example the "Hello World" device model is used.
  * This device model must be uploaded to the server before running this example.
  */
- 
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
 #include "pi_2_dht_read.h"
- 
+
 /* include common public types */
 #include "iotcs.h"
 /* include iot cs device model APIs */
 #include "iotcs_virtual_device.h"
 /* include methods for device client*/
 #include "iotcs_device.h"
- 
+
 /* Current device value */
 static const char* device_current_value;
-
 /* Device model handle */
 static iotcs_device_model_handle device_model_handle = NULL;
-
 /* Device handle */
 static iotcs_virtual_device_handle device_handle = NULL;
- 
+
 /* print error message and terminate the program execution */
 static void error(const char* message) {
     fprintf(stderr,"iotcs: Error occurred: %s\n", message);
     exit(EXIT_FAILURE);
 }
- 
+
+/*
+** Define const Variables
+*/
+// Set sensor type DHT11=11, DHT22=22
+const int sensor_type = 22;
+// The sensor is on GPIO pin=4
+const int gpio_pin = 4;
+// This is the URN of your device model
+const char* device_urns[] = {
+  "urn:com:oracle:demo:esensor",
+  NULL
+};
+
 int main(int argc, char** argv) {
-    /* This is the URN of your device model. */
-    const char* device_urns[] = {
-        "urn:com:oracle:demo:esensor",
-        NULL
-    };
-	
+  const char* ts_path = argv[1];
+  const char* ts_password = argv[2];
+  const char* ts_startmode = argv[3];
+
+  if (argc < 3) {
+    error("Too few parameters.\n"
+              "\nUsage:"
+              "\n\tdirectly_connected_device.out path password"
+              "\n\tpath is a path to trusted assets store."
+              "\n\tpassword is a password for trusted assets store.");
+  }
+
 	/*
 	** Define Variables
 	*/
-    iotcs_result rv;
+  iotcs_result rv;
 	// Set sensor type DHT11=11, DHT22=22, GPIO pin=4
 	const int sensor_type = 22;
 	const int gpio_pin = 4;
@@ -63,22 +80,10 @@ int main(int argc, char** argv) {
 	// Read interval in secs
 	const int read_interval = 300;
 	const int read_interval_testing = 10; // For testing
-	
-	
-    if (argc < 3) {
-        error("Too few parameters.\n"
-                "\nUsage:"
-                "\n\tdirectly_connected_device.out path password"
-                "\n\tpath is a path to trusted assets store."
-                "\n\tpassword is a password for trusted assets store.");
-    }
-    const char* ts_path = argv[1];
-    const char* ts_password = argv[2];
-    const char* ts_startmode = argv[3];
 
 	fprintf(stderr,"iotcs: device starting!\n");
 	fprintf(stderr,"iotcs: Loading configuration from: %s\n" ,ts_path);
-  
+
 	/*
 	 * PK: During prod startup wait startup_delay secs for all services to startup before trying to init IOT
 	*/
@@ -96,58 +101,57 @@ int main(int argc, char** argv) {
 		sleep(startup_delay);
 	}
 
-    /*
-     * Initialize the library before any other calls.
-     * Initiate all subsystems like ssl, TAM, request dispatcher,
-     * async message dispatcher, etc which needed for correct library work.
-     */
-  
-    if (iotcs_init(ts_path, ts_password) != IOTCS_RESULT_OK) {
-        error("Initialization failed");
+  /*
+   * Initialize the library before any other calls.
+   * Initiate all subsystems like ssl, TAM, request dispatcher,
+   * async message dispatcher, etc which needed for correct library work.
+   */
+
+  if (iotcs_init(ts_path, ts_password) != IOTCS_RESULT_OK) {
+    error("Initialization failed");
+  }
+
+  /*
+   * Activate the device, if it's not already activated.
+   * Always check if the device is activated before calling activate.
+   * The device model URN is passed into the activate call to tell
+   * the server the device model(s) that are supported by this
+   * directly connected device
+   */
+
+  if (!iotcs_is_activated()) {
+    if (iotcs_activate(device_urns) != IOTCS_RESULT_OK) {
+      error("Sending activation request failed");
     }
- 
-    /*
-     * Activate the device, if it's not already activated.
-     * Always check if the device is activated before calling activate.
-     * The device model URN is passed into the activate call to tell
-     * the server the device model(s) that are supported by this
-     * directly connected device
-     */
- 
-    if (!iotcs_is_activated()) {
-        if (iotcs_activate(device_urns) != IOTCS_RESULT_OK) {
-            error("Sending activation request failed");
-        }
-    }
- 
-    /* get device model handle */
-    if (iotcs_get_device_model_handle(device_urns[0], &device_model_handle) != IOTCS_RESULT_OK) {
-        fprintf(stderr,"iotcs_get_device_model_handle method failed\n");
-        return IOTCS_RESULT_FAIL;
-    }
- 
-    /* get device handle */
-    if (iotcs_get_virtual_device_handle(iotcs_get_endpoint_id(), device_model_handle, &device_handle) != IOTCS_RESULT_OK) {
-        fprintf(stderr,"iotcs_get_device_handle method failed\n");
-        return IOTCS_RESULT_FAIL;
-    }
- 
+  }
+
+  /* get device model handle */
+  if (iotcs_get_device_model_handle(device_urns[0], &device_model_handle) != IOTCS_RESULT_OK) {
+    fprintf(stderr,"iotcs_get_device_model_handle method failed\n");
+    return IOTCS_RESULT_FAIL;
+  }
+
+  /* get device handle */
+  if (iotcs_get_virtual_device_handle(iotcs_get_endpoint_id(), device_model_handle, &device_handle) != IOTCS_RESULT_OK) {
+    fprintf(stderr,"iotcs_get_device_handle method failed\n");
+    return IOTCS_RESULT_FAIL;
+  }
+
 	/* Init vars for main loop */
 	int i = 0;
 	int result;
 	float humidity, temperature;
 
-//	for (i; i<1; i++) //For debugging
-    /* Main loop - Read the sensor and send message to IOT */
+  /* Main loop - Read the sensor and send message to IOT */
 	while(1)
 	{
 		int ix=0;
 		time_t mytime;
 
-		humidity = 0; 
+		humidity = 0;
 		temperature = 0;
 		result = -1;
-		
+
 		// PK: Read values from the sensor. Retry on bad data
 		while ((result != DHT_SUCCESS) && (ix < retries)) {
 			fprintf(stderr,"iotcs: Reading from the DHT%u sensor!\n", sensor_type);
@@ -160,7 +164,7 @@ int main(int argc, char** argv) {
 				if (ix == retries) {
 					fprintf(stderr,"iotcs: Warning, failed to read %u times from the DHT%u sensor, skipping to next cycle!\n", retries, sensor_type);
 				} else {
-					// wait for sensor for "retry_timer" secs	
+					// wait for sensor for "retry_timer" secs
 					sleep (retry_timer);
 				}
 			}
@@ -168,19 +172,19 @@ int main(int argc, char** argv) {
 
 		// Only report successful sensor readings
 		if (result == DHT_SUCCESS) {
-		
+
 			mytime = time(NULL);
 			printf(ctime(&mytime));
-			
+
 			// PK: print what we report to IOT
 			fprintf(stderr,"\n<*******************************************************************>\n");
 			fprintf(stderr, ctime(&mytime));
 			fprintf(stderr,"iotcs: result = %u, humidity = %2.2f, temperature= %2.2f\n", result, humidity, temperature);
 			fprintf(stderr,"<*******************************************************************>\n\n");
-			
+
 			// PK: Start setting attribute for IOT
 			iotcs_virtual_device_start_update(device_handle);
-			
+
 			// PK: Set attribute
 			rv = iotcs_virtual_device_set_float(device_handle, "temperature", temperature);
 			if (rv != IOTCS_RESULT_OK) {
@@ -194,12 +198,12 @@ int main(int argc, char** argv) {
 				fprintf(stderr,"iotcs_virtual_device_set_float method 2 failed\n");
 				return IOTCS_RESULT_FAIL;
 			}
-			
+
 			// PK: We are done. Send message to IOT
-			iotcs_virtual_device_finish_update(device_handle);		
+			iotcs_virtual_device_finish_update(device_handle);
 
 		}
-		
+
 		// PK: How long to sleep before next sensor reading
 		if (argc > 3) {
 			if (strcmp (ts_startmode, "test") == 0) {
@@ -217,20 +221,20 @@ int main(int argc, char** argv) {
 			sleep(read_interval);
 		}
 	}
- 
-    /* get current device value 
+
+    /* get current device value
     if (iotcs_virtual_device_get_string(device_handle, "message", &device_current_value) != IOTCS_RESULT_OK) {
         fprintf(stderr,"iotcs_virtual_device_get_string method failed\n");
         return IOTCS_RESULT_FAIL;
     }
- 
+
     fprintf(stderr,"Message is %s\n", device_current_value);
  */
     /* free device handle */
     iotcs_free_virtual_device_handle(device_handle);
     /* free device model handle */
     iotcs_free_device_model_handle(device_model_handle);
- 
+
     /*
      * Calling finalization of the library ensures communications channels are closed,
      * previously allocated temporary resources are released.
