@@ -54,7 +54,7 @@ const int sensor_type = 22;
 const int gpio_pin = 4;
 // This is the URN of your device model
 const char* device_urns[] = {
-  "urn:com:oracle:demo:mia",
+  "urn:com:oracle:devices:mia",
   NULL
 };
 
